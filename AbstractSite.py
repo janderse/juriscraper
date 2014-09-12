@@ -3,6 +3,9 @@ import hashlib
 import logging.handlers
 import re
 import requests
+import collections
+import csv
+import datetime
 
 from lxml import html
 from juriscraper.lib.string_utils import harmonize, clean_string, trunc
@@ -299,6 +302,37 @@ class AbstractSite(object):
     def _download_backwards(self):
         # methods for downloading the entire Site
         pass
+
+    # Returns all the scraped meta-data.  Call after parse().
+    # Returns a simple list of dictionaries, one for each document.
+    def get_results(self):
+        cases = []
+        for attr in self._all_attrs:
+            values = getattr(self, attr)
+            if (values is None):
+                continue
+            i = 0
+            for value in values:
+                if (len(cases) <= i):
+                    cases.append(collections.OrderedDict())
+                if (isinstance(value, datetime.date)):
+                    value = value.isoformat()
+                cases[i][attr] = value
+                i += 1
+        return cases
+
+    # Write all the results out as a simple Unicode CSV file.
+    def to_csv(self, stream):
+        cases = self.get_results()
+        if (not cases):
+            return
+        # BOM (optional...Excel needs it to open UTF-8 file properly)
+        stream.write(u'\ufeff'.encode('utf8'))
+        headers = [k.encode('utf8') for k in cases[0].keys()]
+        writer = csv.DictWriter(stream, headers, restval="")
+        writer.writeheader()
+        for case in cases:
+            writer.writerow({k: v.encode('utf8') for k, v in case.items()})
 
     @staticmethod
     def _cleanup_content(content):

@@ -7,6 +7,9 @@ import logging
 import os
 import time
 import unittest
+import pprint
+from collections import OrderedDict
+import json
 
 from juriscraper.lib.importer import build_module_list
 from juriscraper.lib.date_utils import parse_dates, quarter, \
@@ -19,11 +22,15 @@ from juriscraper.lib.string_utils import titlecase
 from juriscraper.opinions.united_states.state import massappct, pa
 import sys
 
+scriptdir = os.path.dirname(os.path.join(os.getcwd(), __file__))
 
 class SlownessException(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
 
+class DataChangedException(Exception):
+    def __init__(self, message):
+        Exception.__init__(self, message)
 
 class DateParserTest(unittest.TestCase):
     def test_various_date_extractions(self):
@@ -68,6 +75,8 @@ class ScraperExampleTest(unittest.TestCase):
         scraper.
         """
 
+        results = OrderedDict()
+
         module_strings = build_module_list('juriscraper')
         num_scrapers = len([s for s in module_strings
                             if 'backscraper' not in s])
@@ -105,6 +114,7 @@ class ScraperExampleTest(unittest.TestCase):
                     # Forces a local GET
                     site.method = 'LOCAL'
                     site.parse()
+                    results[path] = site.get_results()
                 t2 = time.time()
 
                 max_speed = 10
@@ -128,6 +138,24 @@ class ScraperExampleTest(unittest.TestCase):
                     num_tests, speed, msg
                 )
 
+        f = open(os.path.join(scriptdir, "tests_results_new.txt"), "wb")
+        f.write(json.dumps(results, indent=2))
+        f.close()
+
+        f = open(os.path.join(scriptdir, "tests_results.txt"))
+        prevresults = json.load(f)
+        f.close()
+
+        if results == prevresults:
+            print "\n\nScraped meta-data is as expected."
+        else:
+            raise DataChangedException(
+                "The parsed meta-data has CHANGED.  This may indicate a bug. "
+                "Manually compare tests_results.txt and tests_results_new.txt. "
+                "If the new parse results are correct, copy "
+                "tests_results_new.txt to tests_results.txt."
+            )
+
         print ("\n{num_scrapers} scrapers tested successfully against "
                "{num_example_files} example files, with {num_warnings} "
                "speed warnings.".format(
@@ -146,7 +174,6 @@ class ScraperExampleTest(unittest.TestCase):
             # Someday, this line of code will be run. That day is not today.
             print "\nNo speed warnings detected. That's great, keep up the " \
                   "good work!"
-
 
 class StringUtilTest(unittest.TestCase):
     def test_quarter(self):
