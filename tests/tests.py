@@ -10,6 +10,7 @@ import unittest
 import pprint
 from collections import OrderedDict
 import json
+import difflib
 
 from juriscraper.lib.importer import build_module_list
 from juriscraper.lib.date_utils import parse_dates, quarter, \
@@ -138,23 +139,40 @@ class ScraperExampleTest(unittest.TestCase):
                     num_tests, speed, msg
                 )
 
-        f = open(os.path.join(scriptdir, "tests_results_new.txt"), "wb")
-        f.write(json.dumps(results, indent=2))
+        # Normalize the data for comparison.
+        # Some scrapers use the current date or yesterday.
+        # Some scrapers produce different data in different runs.
+        oldf = os.path.join(scriptdir, "tests_results.txt")
+        newf = os.path.join(scriptdir, "tests_results_new.txt")
+        del results["juriscraper/oral_args/united_states/federal_appellate/ca9_example.html"]
+        f = open(newf, "wb")
+        s = json.dumps(results, indent=2).replace(datetime.date.today().isoformat(), "XXXX-XX-XX").replace((datetime.date.today() - datetime.timedelta(days=1)).isoformat(), "XXXX-XX-XX")
+        f.write(s)
         f.close()
-
-        f = open(os.path.join(scriptdir, "tests_results.txt"))
+        f = open(oldf)
         prevresults = json.load(f)
         f.close()
 
-        if results == prevresults:
-            print "\n\nScraped meta-data is as expected."
-        else:
+        oldlines = open(oldf).readlines()
+        newlines = open(newf).readlines()
+        diff = difflib.unified_diff(
+            open(oldf).readlines(),
+            open(newf).readlines(),
+            fromfile=oldf,
+            tofile=newf)
+        diff = [z for z in diff]
+        if (len(diff) > 0):
+            for line in diff:
+                print line,
             raise DataChangedException(
                 "The parsed meta-data has CHANGED.  This may indicate a bug. "
-                "Manually compare tests_results.txt and tests_results_new.txt. "
+                "Compare tests_results.txt and tests_results_new.txt. "
                 "If the new parse results are correct, copy "
                 "tests_results_new.txt to tests_results.txt."
             )
+        else:
+            print "\n\nScraped meta-data is as expected."
+
 
         print ("\n{num_scrapers} scrapers tested successfully against "
                "{num_example_files} example files, with {num_warnings} "
