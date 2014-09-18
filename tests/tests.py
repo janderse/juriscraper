@@ -66,6 +66,16 @@ class ScraperExampleTest(unittest.TestCase):
 
         # Disable logging
         logging.disable(logging.CRITICAL)
+        
+        # Patch today() to return a fixed date
+        datetime_patcher = mock.patch.object(
+            my_module.datetime, 'datetime',  
+            mock.Mock(wraps=datetime.datetime)
+        )
+        mocked_datetime = datetime_patcher.start()
+        mocked_datetime.today.return_value = datetime.datetime(1980, 1, 1)
+        self.addCleanup(datetime_patcher.stop)
+        
 
     def tearDown(self):
         # Re-enable logging
